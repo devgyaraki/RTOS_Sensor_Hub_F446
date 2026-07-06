@@ -42,6 +42,9 @@ typedef struct {
     uint8_t hours;
     uint8_t minutes;
     uint8_t seconds;
+    uint8_t years;
+    uint8_t months;
+    uint8_t days;
 } SensorPacket_t;
 /* USER CODE END PTD */
 
@@ -161,6 +164,7 @@ int main(void)
   ssd1306_Init();
 
   //DS3231_SetTime(17, 03, 00);
+  DS3231_SetDate(6, 7, 26);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -180,7 +184,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of SensorDataQueue */
-  SensorDataQueueHandle = osMessageQueueNew (4, 16, &SensorDataQueue_attributes);
+  SensorDataQueueHandle = osMessageQueueNew (4, sizeof(SensorPacket_t), &SensorDataQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -430,6 +434,9 @@ void StartDataTask(void *argument)
 	      data.hours = DS3231_GetHours();
 	      data.minutes = DS3231_GetMinutes();
 	      data.seconds = DS3231_GetSeconds();
+	      DS3231_GetDate(&data.days, &data.months, &data.years);
+
+
 	      // 2. Sending into Que
 	      osMessageQueuePut(SensorDataQueueHandle, &data, 0, 100);
 
@@ -488,8 +495,12 @@ void StartCommTask(void *argument)
 	        ssd1306_SetCursor(0, 24);
 	        ssd1306_WriteString(buffer, Font_7x10, White);
 
-	        sprintf(buffer, "Time: %02d:%02d:%02d", displayData.hours, displayData.minutes, displayData.seconds);
+	        sprintf(buffer, "Date: %02d/%02d/%02d", displayData.days, displayData.months, displayData.years);
 	        ssd1306_SetCursor(0, 36);
+	        ssd1306_WriteString(buffer, Font_7x10, White);
+
+	        sprintf(buffer, "Time: %02d:%02d:%02d", displayData.hours, displayData.minutes, displayData.seconds);
+	        ssd1306_SetCursor(0, 48);
 	        ssd1306_WriteString(buffer, Font_7x10, White);
 
 	        ssd1306_UpdateScreen();

@@ -30,3 +30,4 @@ uint8_t DS3231_GetSeconds(void) {
 void DS3231_Init(I2C_HandleTypeDef *hi2c) {
 
 }
+

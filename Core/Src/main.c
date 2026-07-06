@@ -26,6 +26,7 @@
 #include "ssd1306_conf.h"
 #include "ssd1306_fonts.h"
 #include "ssd1306.h"
+#include <stdio.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -157,6 +158,9 @@ int main(void)
 
   bme280_init(&dev);
   DS3231_Init(&hi2c1);
+  ssd1306_Init();
+
+  //DS3231_SetTime(17, 03, 00);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -380,7 +384,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -463,12 +466,37 @@ void StartDisplayTask(void *argument)
 void StartCommTask(void *argument)
 {
   /* USER CODE BEGIN StartCommTask */
+	SensorPacket_t displayData;
+	char buffer[32];
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	for(;;)
+	  {
+	    // Adat fogadása a sorból
+	    if (osMessageQueueGet(SensorDataQueueHandle, &displayData, NULL, osWaitForever) == osOK)
+	    {
+	        ssd1306_Fill(Black);
+
+	        sprintf(buffer, "Temp: %.1f C", (double)displayData.temperature);
+	        ssd1306_SetCursor(0, 0);
+	        ssd1306_WriteString(buffer, Font_7x10, White);
+
+	        sprintf(buffer, "Hum: %.1f %%", (double)displayData.humidity);
+	        ssd1306_SetCursor(0, 12);
+	        ssd1306_WriteString(buffer, Font_7x10, White);
+
+	        sprintf(buffer, "Pres: %.1f Pha", (double)displayData.pressure/100);
+	        ssd1306_SetCursor(0, 24);
+	        ssd1306_WriteString(buffer, Font_7x10, White);
+
+	        sprintf(buffer, "Time: %02d:%02d:%02d", displayData.hours, displayData.minutes, displayData.seconds);
+	        ssd1306_SetCursor(0, 36);
+	        ssd1306_WriteString(buffer, Font_7x10, White);
+
+	        ssd1306_UpdateScreen();
+	    }
+	    osDelay(10);
   /* USER CODE END StartCommTask */
+  }
 }
 
 /**

@@ -27,7 +27,14 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct {
+    float temperature;
+    float humidity;
+    float pressure;
+    uint8_t hours;
+    uint8_t minutes;
+    uint8_t seconds;
+} SensorPacket_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/

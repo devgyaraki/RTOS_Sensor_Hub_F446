@@ -2,5 +2,5 @@
 ../Core/Src/rtc_helper.c:18:9:DS3231_GetMinutes	1
 ../Core/Src/rtc_helper.c:24:9:DS3231_GetSeconds	1
 ../Core/Src/rtc_helper.c:30:6:DS3231_Init	1
-../Core/Src/rtc_helper.c:36:6:DS3231_SetDate	1
-../Core/Src/rtc_helper.c:55:6:DS3231_GetDate	2
+../Core/Src/rtc_helper.c:34:6:DS3231_SetDate	1
+../Core/Src/rtc_helper.c:53:6:DS3231_GetDate	2

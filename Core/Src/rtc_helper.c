@@ -30,9 +30,7 @@ uint8_t DS3231_GetSeconds(void) {
 void DS3231_Init(I2C_HandleTypeDef *hi2c) {
 
 }
-
-#define DS3231_ADDR (0x68 << 1)
-
+#define DS3231_ADDR (0x68 << 1)    // 0xD0
 void DS3231_SetDate(uint8_t day, uint8_t month, uint8_t year)
 {
     uint8_t data[3];
@@ -50,7 +48,7 @@ void DS3231_SetDate(uint8_t day, uint8_t month, uint8_t year)
                       HAL_MAX_DELAY);
 }
 
-#define DS3231_ADDR (0x68 << 1)    // 0xD0
+
 
 void DS3231_GetDate(uint8_t *day, uint8_t *month, uint8_t *year)
 {
@@ -67,7 +65,7 @@ void DS3231_GetDate(uint8_t *day, uint8_t *month, uint8_t *year)
         // Date (04h)
         *day = (((buffer[0] >> 4) & 0x03) * 10) + (buffer[0] & 0x0F);
 
-        // Month (05h) - Century bit figyelmen kívül hagyva
+        // Month (05h)
         *month = (((buffer[1] >> 4) & 0x01) * 10) + (buffer[1] & 0x0F);
 
         // Year (06h)

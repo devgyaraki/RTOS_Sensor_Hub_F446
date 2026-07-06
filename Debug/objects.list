@@ -1,6 +1,8 @@
 "./Core/Src/bme280.o"
+"./Core/Src/bme280_helper.o"
 "./Core/Src/freertos.o"
 "./Core/Src/main.o"
+"./Core/Src/rtc_helper.o"
 "./Core/Src/ssd1306.o"
 "./Core/Src/ssd1306_fonts.o"
 "./Core/Src/stm32f4xx_hal_msp.o"

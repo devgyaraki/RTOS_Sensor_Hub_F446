@@ -19,6 +19,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "bme280_defs.h"
+#include "bme280.h"
+#include "bme280_helper.h"
+#include "rtc_helper.h"
+#include "ssd1306_conf.h"
+#include "ssd1306_fonts.h"
+#include "ssd1306.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -51,6 +58,9 @@ typedef struct {
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart2;
+
+struct bme280_dev dev;
+extern osMessageQueueId_t sensorDataQueueHandle;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -86,7 +96,7 @@ const osMessageQueueAttr_t SensorDataQueue_attributes = {
   .name = "SensorDataQueue"
 };
 /* USER CODE BEGIN PV */
-
+extern osMessageQueueId_t sensorDataQueueHandle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,7 +126,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -140,7 +149,14 @@ int main(void)
   MX_I2C1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  dev.intf_ptr = NULL;
+  dev.read = bme280_i2c_read;
+  dev.write = bme280_i2c_write;
+  dev.delay_us = bme280_delay_us;
+  dev.intf = BME280_I2C_INTF;
 
+  bme280_init(&dev);
+  DS3231_Init(&hi2c1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -395,10 +411,26 @@ void StartDefaultTask(void *argument)
 void StartDataTask(void *argument)
 {
   /* USER CODE BEGIN StartDataTask */
+	SensorPacket_t data; //
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  struct bme280_data sensor_data;
+	  // Olvasás:
+	  bme280_get_sensor_data(BME280_ALL, &sensor_data, &dev);
+
+	  // Adatok mentése:
+	  data.temperature = sensor_data.temperature;
+	  data.humidity = sensor_data.humidity;
+	  data.pressure = sensor_data.pressure;
+
+	      data.hours = DS3231_GetHours();
+	      data.minutes = DS3231_GetMinutes();
+	      data.seconds = DS3231_GetSeconds();
+	      // 2. Sending into Que
+	      osMessageQueuePut(SensorDataQueueHandle, &data, 0, 100);
+
+	      osDelay(1000);
   }
   /* USER CODE END StartDataTask */
 }

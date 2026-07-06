@@ -49,7 +49,7 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+struct bme280_dev dev;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,8 +58,6 @@ typedef struct {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-struct bme280_dev dev;
-
 I2C_HandleTypeDef hi2c1;
 
 IWDG_HandleTypeDef hiwdg;
@@ -80,18 +78,11 @@ const osThreadAttr_t DataTask_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for DisplayTask */
-osThreadId_t DisplayTaskHandle;
-const osThreadAttr_t DisplayTask_attributes = {
-  .name = "DisplayTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal,
-};
 /* Definitions for CommTask */
 osThreadId_t CommTaskHandle;
 const osThreadAttr_t CommTask_attributes = {
   .name = "CommTask",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for SensorDataQueue */
@@ -111,7 +102,6 @@ static void MX_USART2_UART_Init(void);
 static void MX_IWDG_Init(void);
 void StartDefaultTask(void *argument);
 void StartDataTask(void *argument);
-void StartDisplayTask(void *argument);
 void StartCommTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -186,7 +176,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of SensorDataQueue */
-  SensorDataQueueHandle = osMessageQueueNew (4, sizeof(SensorPacket_t), &SensorDataQueue_attributes);
+  SensorDataQueueHandle = osMessageQueueNew (4, 16, &SensorDataQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -198,9 +188,6 @@ int main(void)
 
   /* creation of DataTask */
   DataTaskHandle = osThreadNew(StartDataTask, NULL, &DataTask_attributes);
-
-  /* creation of DisplayTask */
-  DisplayTaskHandle = osThreadNew(StartDisplayTask, NULL, &DisplayTask_attributes);
 
   /* creation of CommTask */
   CommTaskHandle = osThreadNew(StartCommTask, NULL, &CommTask_attributes);
@@ -476,24 +463,6 @@ void StartDataTask(void *argument)
 	      osDelay(200);
   }
   /* USER CODE END StartDataTask */
-}
-
-/* USER CODE BEGIN Header_StartDisplayTask */
-/**
-* @brief Function implementing the DisplayTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartDisplayTask */
-void StartDisplayTask(void *argument)
-{
-  /* USER CODE BEGIN StartDisplayTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartDisplayTask */
 }
 
 /* USER CODE BEGIN Header_StartCommTask */

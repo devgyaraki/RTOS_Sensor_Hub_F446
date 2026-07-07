@@ -176,7 +176,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of SensorDataQueue */
-  SensorDataQueueHandle = osMessageQueueNew (4, 16, &SensorDataQueue_attributes);
+  SensorDataQueueHandle = osMessageQueueNew (4, sizeof(SensorPacket_t), &SensorDataQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -322,7 +322,7 @@ static void MX_IWDG_Init(void)
   /* USER CODE END IWDG_Init 1 */
   hiwdg.Instance = IWDG;
   hiwdg.Init.Prescaler = IWDG_PRESCALER_16;
-  hiwdg.Init.Reload = 1000;
+  hiwdg.Init.Reload = 1399;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
     Error_Handler();
@@ -421,7 +421,7 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }
@@ -507,7 +507,7 @@ void StartCommTask(void *argument)
 
 	        ssd1306_UpdateScreen();
 	    }
-	    osDelay(10);
+	    osDelay(100);
   /* USER CODE END StartCommTask */
 	  }
 }

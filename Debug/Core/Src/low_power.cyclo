@@ -1,0 +1,2 @@
+../Core/Src/low_power.c:12:6:PreSleepProcessing	1
+../Core/Src/low_power.c:24:6:PostSleepProcessing	1

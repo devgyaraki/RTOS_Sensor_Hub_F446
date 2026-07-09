@@ -30,6 +30,7 @@
 #include "ssd1306_fonts.h"
 #include "ssd1306.h"
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,6 +50,9 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+volatile uint32_t dataTaskAlive = 0;
+volatile uint32_t commTaskAlive = 0;
+
 struct bme280_dev dev;
 /* USER CODE END PD */
 
@@ -90,8 +94,12 @@ osMessageQueueId_t SensorDataQueueHandle;
 const osMessageQueueAttr_t SensorDataQueue_attributes = {
   .name = "SensorDataQueue"
 };
+/* Definitions for i2cMutex */
+osMutexId_t i2cMutexHandle;
+const osMutexAttr_t i2cMutex_attributes = {
+  .name = "i2cMutex"
+};
 /* USER CODE BEGIN PV */
-extern osMessageQueueId_t sensorDataQueueHandle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -151,7 +159,24 @@ int main(void)
   dev.delay_us = bme280_delay_us;
   dev.intf = BME280_I2C_INTF;
 
-  bme280_init(&dev);
+  if (bme280_init(&dev) != BME280_OK)
+  {
+      Error_Handler();
+  }
+
+    struct bme280_settings settings;
+
+    bme280_get_sensor_settings(&settings, &dev);
+
+    settings.osr_h = BME280_OVERSAMPLING_1X;
+    settings.osr_p = BME280_OVERSAMPLING_1X;
+    settings.osr_t = BME280_OVERSAMPLING_1X;
+    settings.filter = BME280_FILTER_COEFF_16;
+
+    bme280_set_sensor_settings(BME280_SEL_OSR_PRESS | BME280_SEL_OSR_TEMP | BME280_SEL_OSR_HUM | BME280_SEL_FILTER, &settings, &dev);
+
+    bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev);
+
   DS3231_Init(&hi2c1);
   ssd1306_Init();
   //One tim date settings
@@ -161,6 +186,9 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of i2cMutex */
+  i2cMutexHandle = osMutexNew(&i2cMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -287,7 +315,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.ClockSpeed = 400000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -418,10 +446,12 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+	MX_IWDG_Init();
   /* Infinite loop */
   for(;;)
   {
-    osDelay(10);
+	  HAL_IWDG_Refresh(&hiwdg);
+	      osDelay(200);
   }
   /* USER CODE END 5 */
 }
@@ -433,37 +463,46 @@ void StartDefaultTask(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartDataTask */
+
+
 void StartDataTask(void *argument)
 {
-  /* USER CODE BEGIN StartDataTask */
-	SensorPacket_t data; //
-  /* Infinite loop */
-  for(;;)
-  {
-	  struct bme280_data sensor_data;
-	  // Olvasás:
-	  bme280_get_sensor_data(BME280_ALL, &sensor_data, &dev);
+	  /* USER CODE BEGIN StartDataTask */
+    SensorPacket_t data;
+    for (;;)
+    {
+        struct bme280_data sensor_data;
 
-	  // Adatok mentése:
-	  data.temperature = sensor_data.temperature;
-	  data.humidity = sensor_data.humidity;
-	  data.pressure = sensor_data.pressure;
+        if (osMutexAcquire(i2cMutexHandle, pdMS_TO_TICKS(50)) == osOK)
+        {
+            int8_t rslt = bme280_get_sensor_data(BME280_ALL, &sensor_data, &dev);
 
-	      data.hours = DS3231_GetHours();
-	      data.minutes = DS3231_GetMinutes();
-	      data.seconds = DS3231_GetSeconds();
-	      DS3231_GetDate(&data.days, &data.months, &data.years);
+            if (rslt == BME280_OK)
+            {
+                data.temperature = sensor_data.temperature;
+                data.humidity    = sensor_data.humidity;
+                data.pressure    = sensor_data.pressure;
 
+                data.hours   = DS3231_GetHours();
+                data.minutes = DS3231_GetMinutes();
+                data.seconds = DS3231_GetSeconds();
+                DS3231_GetDate(&data.days, &data.months, &data.years);
+            }
 
-	      // 2. Sending into Que
-	      osMessageQueuePut(SensorDataQueueHandle, &data, 0, 100);
+            osMutexRelease(i2cMutexHandle);
 
-	      HAL_IWDG_Refresh(&hiwdg);
-
-	      osDelay(200);
-  }
-  /* USER CODE END StartDataTask */
+            if (rslt == BME280_OK)
+            {
+                if (osMessageQueuePut(SensorDataQueueHandle, &data, 0, 100) == osOK)
+                {
+                    dataTaskAlive = osKernelGetTickCount();
+                }
+            }
+        }
+        osDelay(100);
+    }
 }
+  /* USER CODE END StartDataTask */
 
 /* USER CODE BEGIN Header_StartCommTask */
 /**
@@ -472,45 +511,51 @@ void StartDataTask(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartCommTask */
+
+  /* USER CODE BEGIN StartCommTask */
 void StartCommTask(void *argument)
 {
-  /* USER CODE BEGIN StartCommTask */
-	SensorPacket_t displayData;
-	char buffer[32];
-  /* Infinite loop */
-	for(;;)
-	  {
-	    // Adat fogadása a sorból
-	    if (osMessageQueueGet(SensorDataQueueHandle, &displayData, NULL, osWaitForever) == osOK)
-	    {
-	        ssd1306_Fill(Black);
+	  /* USER CODE BEGIN StartCommTask */
+    SensorPacket_t displayData;
+      char buffer[32];
+    for(;;)
+    {
+        // 1) Várj az adatra — ez NEM tartja lefoglalva a mutexet
+        if (osMessageQueueGet(SensorDataQueueHandle, &displayData, NULL, pdMS_TO_TICKS(50)) == osOK)
+        {
+            // 2) Csak most, a tényleges kijelzőírás idejére szerezd meg a mutexet
+            if (osMutexAcquire(i2cMutexHandle, pdMS_TO_TICKS(50)) == osOK) {
+                ssd1306_Fill(Black);
 
-	        sprintf(buffer, "Temp: %.1f C", (double)displayData.temperature);
-	        ssd1306_SetCursor(0, 0);
-	        ssd1306_WriteString(buffer, Font_7x10, White);
+                sprintf(buffer, "Temp: %.1f C", (double)displayData.temperature);
+                ssd1306_SetCursor(0, 0);
+                ssd1306_WriteString(buffer, Font_7x10, White);
 
-	        sprintf(buffer, "Hum: %.1f %%", (double)displayData.humidity);
-	        ssd1306_SetCursor(0, 12);
-	        ssd1306_WriteString(buffer, Font_7x10, White);
+                sprintf(buffer, "Hum: %.1f %%", (double)displayData.humidity);
+                ssd1306_SetCursor(0, 12);
+                ssd1306_WriteString(buffer, Font_7x10, White);
 
-	        sprintf(buffer, "Pres: %.1f Pha", (double)displayData.pressure/100);
-	        ssd1306_SetCursor(0, 24);
-	        ssd1306_WriteString(buffer, Font_7x10, White);
+                sprintf(buffer, "Pres: %.1f hPa", (double)displayData.pressure/100);
+                ssd1306_SetCursor(0, 24);
+                ssd1306_WriteString(buffer, Font_7x10, White);
 
-	        sprintf(buffer, "Date: %02d/%02d/%02d", displayData.days, displayData.months, displayData.years);
-	        ssd1306_SetCursor(0, 36);
-	        ssd1306_WriteString(buffer, Font_7x10, White);
+                sprintf(buffer, "Date: %02d/%02d/%02d", displayData.days, displayData.months, displayData.years);
+                ssd1306_SetCursor(0, 36);
+                ssd1306_WriteString(buffer, Font_7x10, White);
 
-	        sprintf(buffer, "Time: %02d:%02d:%02d", displayData.hours, displayData.minutes, displayData.seconds);
-	        ssd1306_SetCursor(0, 48);
-	        ssd1306_WriteString(buffer, Font_7x10, White);
+                sprintf(buffer, "Time: %02d:%02d:%02d", displayData.hours, displayData.minutes, displayData.seconds);
+                ssd1306_SetCursor(0, 48);
+                ssd1306_WriteString(buffer, Font_7x10, White);
 
-	        ssd1306_UpdateScreen();
-	    }
-	    osDelay(100);
-  /* USER CODE END StartCommTask */
-	  }
+                ssd1306_UpdateScreen();
+                osMutexRelease(i2cMutexHandle);
+
+                commTaskAlive = osKernelGetTickCount();
+            }
+        }
+    }
 }
+  /* USER CODE END StartCommTask */
 
 /**
   * @brief  Period elapsed callback in non blocking mode

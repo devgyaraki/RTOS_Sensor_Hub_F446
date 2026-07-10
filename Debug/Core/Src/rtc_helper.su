@@ -3,4 +3,4 @@
 ../Core/Src/rtc_helper.c:24:9:DS3231_GetSeconds	32	static
 ../Core/Src/rtc_helper.c:30:6:DS3231_Init	16	static
 ../Core/Src/rtc_helper.c:34:6:DS3231_SetDate	40	static
-../Core/Src/rtc_helper.c:53:6:DS3231_GetDate	48	static
+../Core/Src/rtc_helper.c:47:6:DS3231_GetDate	48	static

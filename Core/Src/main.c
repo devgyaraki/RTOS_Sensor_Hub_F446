@@ -446,7 +446,6 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-	MX_IWDG_Init();
   /* Infinite loop */
   for(;;)
   {

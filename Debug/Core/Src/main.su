@@ -5,7 +5,7 @@
 ../Core/Src/main.c:369:13:MX_USART2_UART_Init	8	static
 ../Core/Src/main.c:402:13:MX_GPIO_Init	48	static
 ../Core/Src/main.c:446:6:StartDefaultTask	16	static
-../Core/Src/main.c:468:6:StartDataTask	64	static
-../Core/Src/main.c:516:6:StartCommTask	80	static
-../Core/Src/main.c:568:6:HAL_TIM_PeriodElapsedCallback	16	static
-../Core/Src/main.c:586:6:Error_Handler	4	static,ignoring_inline_asm
+../Core/Src/main.c:467:6:StartDataTask	64	static
+../Core/Src/main.c:515:6:StartCommTask	80	static
+../Core/Src/main.c:567:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:585:6:Error_Handler	4	static,ignoring_inline_asm

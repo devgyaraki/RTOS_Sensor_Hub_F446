@@ -53,6 +53,13 @@ typedef struct {
 volatile uint32_t dataTaskAlive = 0;
 volatile uint32_t commTaskAlive = 0;
 
+volatile UBaseType_t dataStack = 0;
+volatile UBaseType_t commStack = 0;
+volatile UBaseType_t defaultStack = 0;
+
+volatile uint32_t freeHeap = 0;
+volatile uint32_t minHeap = 0;
+
 struct bme280_dev dev;
 /* USER CODE END PD */
 
@@ -349,8 +356,8 @@ static void MX_IWDG_Init(void)
 
   /* USER CODE END IWDG_Init 1 */
   hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_16;
-  hiwdg.Init.Reload = 1399;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_64;
+  hiwdg.Init.Reload = 4095;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
     Error_Handler();
@@ -434,6 +441,9 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -449,8 +459,35 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  HAL_IWDG_Refresh(&hiwdg);
-	      osDelay(200);
+
+
+      uint32_t now = osKernelGetTickCount();
+
+      if ((now - dataTaskAlive) < pdMS_TO_TICKS(5000) &&
+          (now - commTaskAlive) < pdMS_TO_TICKS(5000))
+      {
+          HAL_IWDG_Refresh(&hiwdg);
+      }
+      else
+      {
+
+      }
+	    dataStack =
+	        uxTaskGetStackHighWaterMark(DataTaskHandle);
+
+	    commStack =
+	        uxTaskGetStackHighWaterMark(CommTaskHandle);
+
+	    defaultStack =
+	        uxTaskGetStackHighWaterMark(defaultTaskHandle);
+
+	    freeHeap = xPortGetFreeHeapSize();
+
+	    minHeap = xPortGetMinimumEverFreeHeapSize();
+
+	    HAL_IWDG_Refresh(&hiwdg);
+
+	    osDelay(5000);
   }
   /* USER CODE END 5 */
 }
@@ -462,11 +499,9 @@ void StartDefaultTask(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartDataTask */
-
-
 void StartDataTask(void *argument)
 {
-	  /* USER CODE BEGIN StartDataTask */
+  /* USER CODE BEGIN StartDataTask */
     SensorPacket_t data;
     for (;;)
     {
@@ -510,10 +545,9 @@ void StartDataTask(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartCommTask */
-
-  /* USER CODE BEGIN StartCommTask */
 void StartCommTask(void *argument)
 {
+  /* USER CODE BEGIN StartCommTask */
 	  /* USER CODE BEGIN StartCommTask */
     SensorPacket_t displayData;
       char buffer[32];

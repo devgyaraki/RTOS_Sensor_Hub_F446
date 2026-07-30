@@ -1,0 +1,15 @@
+# STM32CubeIDE / Eclipse
+.settings/
+Debug/
+Release/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.list
+
+# Other unusable files
+.metadata/
+RemoteSystemsTempFiles/

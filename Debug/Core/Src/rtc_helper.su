@@ -1,6 +1,9 @@
-../Core/Src/rtc_helper.c:12:9:DS3231_GetHours	32	static
-../Core/Src/rtc_helper.c:18:9:DS3231_GetMinutes	32	static
-../Core/Src/rtc_helper.c:24:9:DS3231_GetSeconds	32	static
-../Core/Src/rtc_helper.c:30:6:DS3231_Init	16	static
-../Core/Src/rtc_helper.c:34:6:DS3231_SetDate	40	static
-../Core/Src/rtc_helper.c:47:6:DS3231_GetDate	48	static
+../Core/Src/rtc_helper.c:18:6:DS3231_ResetI2C	16	static
+../Core/Src/rtc_helper.c:25:9:DS3231_GetHours	32	static
+../Core/Src/rtc_helper.c:34:9:DS3231_GetMinutes	32	static
+../Core/Src/rtc_helper.c:43:9:DS3231_GetSeconds	32	static
+../Core/Src/rtc_helper.c:52:6:DS3231_Init	16	static
+../Core/Src/rtc_helper.c:56:19:DS3231_SetTime	40	static
+../Core/Src/rtc_helper.c:70:6:DS3231_GetTime	48	static
+../Core/Src/rtc_helper.c:87:19:DS3231_SetDate	40	static
+../Core/Src/rtc_helper.c:101:6:DS3231_GetDate	48	static

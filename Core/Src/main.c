@@ -113,7 +113,8 @@ void StartDataTask(void *argument);
 void StartCommTask(void *argument);
 
 /* USER CODE BEGIN PFP */
-
+int8_t Bme280_Setup(void);
+void I2C1_BusRecover(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -151,8 +152,22 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_USART2_UART_Init();
-  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+  int8_t rslt = Bme280_Setup();
+  char m[32];
+  int k = snprintf(m, sizeof(m), "bme280_setup: %d\r\n", rslt);
+  HAL_UART_Transmit(&huart2, (uint8_t*)m, k, 100);
+
+
+  if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)) {
+      HAL_UART_Transmit(&huart2, (uint8_t*)"IWDG reset\r\n", 12, 100);
+  } else {
+      HAL_UART_Transmit(&huart2, (uint8_t*)"Normal boot\r\n", 13, 100);
+  }
+  __HAL_RCC_CLEAR_RESET_FLAGS();
+
+  I2C1_BusRecover();
+
   dev.intf_ptr = NULL;
   dev.read = bme280_i2c_read;
   dev.write = bme280_i2c_write;
@@ -161,7 +176,8 @@ int main(void)
 
   if (bme280_init(&dev) != BME280_OK)
   {
-      Error_Handler();
+      const char hello[] = "Hiba tortent\r\n";
+      HAL_UART_Transmit(&huart2, (uint8_t*)hello, sizeof(hello) - 1, 100);
   }
 
     struct bme280_settings settings;
@@ -178,10 +194,11 @@ int main(void)
     bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev);
 
   DS3231_Init(&hi2c1);
+  MX_IWDG_Init();
   ssd1306_Init();
   //One tim date settings
-  //DS3231_SetTime(17, 03, 00);
-  //DS3231_SetDate(6, 7, 26);
+  //DS3231_SetTime(10, 19, 00);
+  //DS3231_SetDate(6, 11, 26);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -238,7 +255,6 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -434,6 +450,80 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+int8_t Bme280_Setup(void)
+{
+    int8_t r = bme280_init(&dev);
+    if (r != BME280_OK) return r;
+
+    struct bme280_settings s;
+    r = bme280_get_sensor_settings(&s, &dev);
+    if (r != BME280_OK) return r;
+
+    s.osr_h  = BME280_OVERSAMPLING_1X;
+    s.osr_p  = BME280_OVERSAMPLING_1X;
+    s.osr_t  = BME280_OVERSAMPLING_1X;
+    s.filter = BME280_FILTER_COEFF_16;
+
+    r = bme280_set_sensor_settings(BME280_SEL_OSR_PRESS | BME280_SEL_OSR_TEMP |
+                                   BME280_SEL_OSR_HUM   | BME280_SEL_FILTER, &s, &dev);
+    if (r != BME280_OK) return r;
+
+    return bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev);
+}
+
+
+#define I2C_SCL_PORT GPIOB
+#define I2C_SCL_PIN  GPIO_PIN_8
+#define I2C_SDA_PORT GPIOB
+#define I2C_SDA_PIN  GPIO_PIN_9
+
+void I2C1_BusRecover(void)
+{
+    GPIO_InitTypeDef g = {0};
+
+    __HAL_I2C_DISABLE(&hi2c1);
+    HAL_I2C_DeInit(&hi2c1);
+    __HAL_RCC_I2C1_FORCE_RESET();
+    HAL_Delay(2);
+    __HAL_RCC_I2C1_RELEASE_RESET();
+
+    g.Pin   = I2C_SCL_PIN | I2C_SDA_PIN;
+    g.Mode  = GPIO_MODE_OUTPUT_OD;
+    g.Pull  = GPIO_PULLUP;
+    g.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(I2C_SCL_PORT, &g);
+
+    HAL_GPIO_WritePin(I2C_SDA_PORT, I2C_SDA_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(I2C_SCL_PORT, I2C_SCL_PIN, GPIO_PIN_SET);
+    HAL_Delay(1);
+
+    for (int i = 0; i < 9; i++)
+    {
+        if (HAL_GPIO_ReadPin(I2C_SDA_PORT, I2C_SDA_PIN) == GPIO_PIN_SET) break;
+        HAL_GPIO_WritePin(I2C_SCL_PORT, I2C_SCL_PIN, GPIO_PIN_RESET);
+        HAL_Delay(1);
+        HAL_GPIO_WritePin(I2C_SCL_PORT, I2C_SCL_PIN, GPIO_PIN_SET);
+        HAL_Delay(1);
+    }
+
+    uint8_t sdaOk = (HAL_GPIO_ReadPin(I2C_SDA_PORT, I2C_SDA_PIN) == GPIO_PIN_SET);
+    uint8_t sclOk = (HAL_GPIO_ReadPin(I2C_SCL_PORT, I2C_SCL_PIN) == GPIO_PIN_SET);
+
+    // STOP feltétel
+    HAL_GPIO_WritePin(I2C_SDA_PORT, I2C_SDA_PIN, GPIO_PIN_RESET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(I2C_SCL_PORT, I2C_SCL_PIN, GPIO_PIN_SET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(I2C_SDA_PORT, I2C_SDA_PIN, GPIO_PIN_SET);
+    HAL_Delay(1);
+
+    HAL_GPIO_DeInit(I2C_SCL_PORT, I2C_SCL_PIN | I2C_SDA_PIN);
+    HAL_I2C_Init(&hi2c1);
+
+    char msg[40];
+    int n = snprintf(msg, sizeof(msg), "Recover: SDA=%d SCL=%d\r\n", sdaOk, sclOk);
+    HAL_UART_Transmit(&huart2, (uint8_t*)msg, n, 100);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -449,8 +539,18 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  HAL_IWDG_Refresh(&hiwdg);
-	      osDelay(200);
+      uint32_t current_tick = osKernelGetTickCount();
+
+      if ((current_tick - dataTaskAlive) < 1500)
+      {
+          HAL_IWDG_Refresh(&hiwdg); //
+      }
+      else
+      {
+
+      }
+
+      osDelay(200);
   }
   /* USER CODE END 5 */
 }
@@ -466,39 +566,37 @@ void StartDefaultTask(void *argument)
 
 void StartDataTask(void *argument)
 {
-	  /* USER CODE BEGIN StartDataTask */
     SensorPacket_t data;
+    uint8_t errCount = 0;
+    dataTaskAlive = osKernelGetTickCount();
+
     for (;;)
     {
-        struct bme280_data sensor_data;
-
-        if (osMutexAcquire(i2cMutexHandle, pdMS_TO_TICKS(50)) == osOK)
+        if (osMutexAcquire(i2cMutexHandle, 50) == osOK)
         {
-            int8_t rslt = bme280_get_sensor_data(BME280_ALL, &sensor_data, &dev);
+            struct bme280_data sd;
+            uint8_t h, m, s, d, mo, y;
+            bool ok = (bme280_get_sensor_data(BME280_ALL, &sd, &dev) == BME280_OK)
+                   && DS3231_GetTime(&h, &m, &s)
+                   && DS3231_GetDate(&d, &mo, &y);
 
-            if (rslt == BME280_OK)
-            {
-                data.temperature = sensor_data.temperature;
-                data.humidity    = sensor_data.humidity;
-                data.pressure    = sensor_data.pressure;
-
-                data.hours   = DS3231_GetHours();
-                data.minutes = DS3231_GetMinutes();
-                data.seconds = DS3231_GetSeconds();
-                DS3231_GetDate(&data.days, &data.months, &data.years);
+            if (ok) {
+                errCount = 0;
+                data.temperature = sd.temperature;
+                data.humidity    = sd.humidity;
+                data.pressure    = sd.pressure;
+                data.hours = h; data.minutes = m; data.seconds = s;
+                data.days = d;  data.months = mo; data.years = y;
+                osMessageQueuePut(SensorDataQueueHandle, &data, 0, 0);
+            } else if (++errCount >= 3) {
+                I2C1_BusRecover();
+                Bme280_Setup();
+                errCount = 0;
             }
-
             osMutexRelease(i2cMutexHandle);
-
-            if (rslt == BME280_OK)
-            {
-                if (osMessageQueuePut(SensorDataQueueHandle, &data, 0, 100) == osOK)
-                {
-                    dataTaskAlive = osKernelGetTickCount();
-                }
-            }
         }
-        osDelay(100);
+        dataTaskAlive = osKernelGetTickCount();
+        osDelay(1000);
     }
 }
   /* USER CODE END StartDataTask */
@@ -515,14 +613,15 @@ void StartDataTask(void *argument)
 void StartCommTask(void *argument)
 {
 	  /* USER CODE BEGIN StartCommTask */
+	uint8_t oledErr = 0;
+	uint32_t lastReinit = 0;
+
     SensorPacket_t displayData;
-      char buffer[32];
+      char buffer[64];
     for(;;)
     {
-        // 1) Várj az adatra — ez NEM tartja lefoglalva a mutexet
         if (osMessageQueueGet(SensorDataQueueHandle, &displayData, NULL, pdMS_TO_TICKS(50)) == osOK)
         {
-            // 2) Csak most, a tényleges kijelzőírás idejére szerezd meg a mutexet
             if (osMutexAcquire(i2cMutexHandle, pdMS_TO_TICKS(50)) == osOK) {
                 ssd1306_Fill(Black);
 
@@ -546,8 +645,28 @@ void StartCommTask(void *argument)
                 ssd1306_SetCursor(0, 48);
                 ssd1306_WriteString(buffer, Font_7x10, White);
 
-                ssd1306_UpdateScreen();
+                HAL_StatusTypeDef st = ssd1306_UpdateScreen();
+                uint32_t now = osKernelGetTickCount();
+
+                if (st != HAL_OK) {
+                    oledErr++;
+                    if (oledErr >= 3) {
+                        ssd1306_Init();
+                        oledErr = 0;
+                    }
+                } else {
+                    oledErr = 0;
+                }
                 osMutexRelease(i2cMutexHandle);
+
+                int len = snprintf(buffer, sizeof(buffer), "%02d-%02d-20%02d %02d:%02d:%02d,%.2f,%.2f,%.2f\r\n",
+                                               displayData.years, displayData.months, displayData.days,
+                                               displayData.hours, displayData.minutes, displayData.seconds,
+                                               (double)displayData.temperature,
+                                               (double)displayData.humidity,
+                                               (double)displayData.pressure / 100.0);
+
+                HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 100);
 
                 commTaskAlive = osKernelGetTickCount();
             }
